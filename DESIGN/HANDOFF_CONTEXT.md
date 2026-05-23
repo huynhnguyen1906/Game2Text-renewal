@@ -1,6 +1,6 @@
 # Native Rewrite Handoff Context
 
-This file is the practical handoff for continuing work on `newsource/` in a new chat.
+This file is the practical handoff for continuing work on this standalone project in a new chat.
 
 It complements:
 
@@ -13,7 +13,7 @@ Those files describe the intended architecture. This file describes the **actual
 
 ## Project Status
 
-`newsource/` is now a mostly standalone Windows-native rewrite of the old web/Eel workflow.
+This project is now a mostly standalone Windows-native rewrite of the old web/Eel workflow.
 
 Implemented and usable:
 
@@ -26,56 +26,55 @@ Implemented and usable:
 - async translation queue
 - log rows with source text + translated text/loading/error
 - filter preview and YAML profiles
-- build packaging to `newsource/dist/native-game2text`
+- build packaging to `dist/native-game2text`
 - optional game translation overlay window
 
-The old web/Eel app still exists in repo root, but native runtime under `newsource/` is independent.
+The old web/Eel app exists in the original repository, but this project root is now independent.
 
 ## Current Native Entry Points
 
-- App entry: `newsource/native_app.py`
-- Build script: `newsource/build_native.bat`
-- Admin launcher for packaged app: `newsource/run_native_admin.bat`
-- PyInstaller spec: `newsource/native-game2text.spec`
+- App entry: `native_app.py`
+- Build script: `build_native.bat`
+- Admin launcher for packaged app: `run_native_admin.bat`
+- PyInstaller spec: `native-game2text.spec`
 
 ## Current Directory Shape
 
 Important folders/files:
 
-- `newsource/native/`
-- `newsource/native_app.py`
-- `newsource/config.ini`
-- `newsource/config.template.ini`
-- `newsource/profiles/`
-- `newsource/resources/bin/win/tesseract/`
-- `newsource/venv/`
-- `newsource/dist/`
+- `native/`
+- `native_app.py`
+- `config.ini`
+- `config.template.ini`
+- `profiles/`
+- `resources/bin/win/tesseract/`
+- `venv/`
+- `dist/`
 
-`newsource` is close to being movable as a standalone project. If moving it to a different path, recreating `venv` is safer than trusting the copied virtual environment.
+This project is standalone. If moving it to a different path, recreating `venv` is safer than trusting the copied virtual environment.
 
 ## Run / Build Commands
 
 ### Dev Run
 
-From repo root:
+From project root:
 
 ```powershell
-cd .\newsource
 .\venv\Scripts\Activate.ps1
 python .\native_app.py
 ```
 
 ### Dev Run As Admin
 
-From repo root:
+From project root:
 
 ```powershell
-Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-Command','Set-Location "E:\GITHUB_SPACE\Game2Text\newsource"; .\venv\Scripts\Activate.ps1; python .\native_app.py'
+Start-Process powershell -Verb RunAs -ArgumentList '-NoExit','-Command','Set-Location "E:\GITHUB_SPACE\Game2Text-renewal"; .\venv\Scripts\Activate.ps1; python .\native_app.py'
 ```
 
 ### Build
 
-From `newsource/`:
+From project root:
 
 ```powershell
 .\build_native.bat
@@ -84,7 +83,7 @@ From `newsource/`:
 Build output:
 
 ```text
-newsource/dist/native-game2text/
+dist/native-game2text/
 ```
 
 ## Window Model
@@ -351,11 +350,11 @@ Current behavior:
 
 Main config file:
 
-- `newsource/config.ini`
+- `config.ini`
 
 Template used during build:
 
-- `newsource/config.template.ini`
+- `config.template.ini`
 
 Important behavior:
 
@@ -392,7 +391,7 @@ Working:
 
 Build output target:
 
-- `newsource/dist/native-game2text/`
+- `dist/native-game2text/`
 
 ## Known Tradeoffs / Cautions
 
@@ -421,7 +420,7 @@ Overlay feature is usable, but if future issues appear, rollback is easy because
 ## Recent Fixes That Should Not Be Lost
 
 1. log window double-pass auto-scroll
-2. source-independent `newsource` build structure
+2. source-independent standalone build structure
 3. runtime icon + taskbar icon fix
 4. overlay border/shadow suppression in non-edit mode
 5. overlay fade-out and auto-hide state separation
@@ -439,11 +438,11 @@ Overlay feature is usable, but if future issues appear, rollback is easy because
 The safest instruction to give the next model is:
 
 1. read:
-   - `newsource/HANDOFF_CONTEXT.md`
-   - `newsource/PROJECT_SPEC.md`
-   - `newsource/DESIGN/ARCHITECTURE.md`
-   - `newsource/DESIGN/APP_UX_DECISIONS.md`
-2. treat `newsource/` as the active project
+   - `DESIGN/HANDOFF_CONTEXT.md`
+   - `DESIGN/PROJECT_SPEC.md`
+   - `DESIGN/ARCHITECTURE.md`
+   - `DESIGN/APP_UX_DECISIONS.md`
+2. treat this root as the active project
 3. do not reintroduce runtime imports from the old Eel/web source
 4. preserve current overlay behavior unless explicitly changing it
 5. preserve current packaging behavior where build does not leak the live API key
@@ -456,4 +455,3 @@ If work continues later, the most likely next valuable tasks are:
 2. multi-region support
 3. game overlay polish
 4. cleanup pass on docs/config defaults if the project is moved into a separate repo
-

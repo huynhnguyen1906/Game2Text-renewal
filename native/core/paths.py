@@ -7,7 +7,7 @@ from pathlib import Path
 def app_root() -> Path:
     """Return the editable runtime root.
 
-    In source mode this is the newsource directory. In a packaged build this is
+    In source mode this is the project root. In a packaged build this is
     the directory containing the executable.
     """
     if getattr(sys, "frozen", False):

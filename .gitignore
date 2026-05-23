@@ -13,8 +13,8 @@ env/
 # Local runtime data
 config.ini
 config.ini.bak*
-logs/
-runtime/
+/logs/
+/runtime/
 
 # Build artifacts kept internal to this standalone source tree
 build/

@@ -25,7 +25,7 @@ if not exist "%TEMPLATE_CONFIG%" (
 )
 
 if not exist "%ROOT%resources\bin\win\tesseract" (
-  echo Missing bundled Tesseract runtime under newsource\resources\bin\win\tesseract
+  echo Missing bundled Tesseract runtime under resources\bin\win\tesseract
   exit /b 1
 )
 
