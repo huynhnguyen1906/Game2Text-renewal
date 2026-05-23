@@ -22,25 +22,25 @@ def setup_hotkeys(
     keyboard.add_hotkey(
         capture_hotkey,
         lambda: global_bus.trigger_capture.emit(),
-        suppress=True,
+        suppress=False,
         trigger_on_release=True,
     )
     keyboard.add_hotkey(
         select_hotkey,
         lambda: global_bus.trigger_select_region.emit(),
-        suppress=True,
+        suppress=False,
         trigger_on_release=True,
     )
     keyboard.add_hotkey(
         show_borders_hotkey,
         lambda: global_bus.trigger_show_borders.emit(),
-        suppress=True,
+        suppress=False,
         trigger_on_release=True,
     )
     keyboard.add_hotkey(
         toggle_game_overlay_hotkey,
         lambda: global_bus.trigger_toggle_game_overlay.emit(),
-        suppress=True,
+        suppress=False,
         trigger_on_release=True,
     )
 

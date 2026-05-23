@@ -10,7 +10,7 @@ from PySide6.QtGui import QIcon
 from native.core.dpi import enable_dpi_awareness, set_windows_app_user_model_id
 from native.core import paths
 from native.core.startup import initialize_runtime
-from native.config.service import load_region, read_value, save_region
+from native.config.service import load_region, read_value, save_region, update_section
 from native.core.models import ScreenRegion
 from native.app.app_controller import global_controller
 from native.app.event_bus import global_bus
@@ -99,12 +99,15 @@ def main() -> int:
         )
         show_borders_hotkey = read_value("NATIVEAPP", "show_borders_hotkey", "ctrl+shift+1")
         toggle_game_overlay_hotkey = read_value("GAMEOVERLAY", "toggle_hotkey", "ctrl+shift+2")
+        source_lang = read_value("TRANSLATIONCONFIG", "source_lang", "en")
+        target_lang = read_value("TRANSLATIONCONFIG", "target_lang", "vi")
         main_win.update_hotkey_labels(
             capture_hotkey=region_for_hotkeys.capture_hotkey,
             select_hotkey=region_for_hotkeys.select_hotkey,
             toggle_borders_hotkey=show_borders_hotkey,
             toggle_game_overlay_hotkey=toggle_game_overlay_hotkey,
         )
+        main_win.sync_translation_language_selectors(source_lang, target_lang)
         setup_hotkeys(
             region_for_hotkeys.capture_hotkey,
             region_for_hotkeys.select_hotkey,
@@ -248,12 +251,26 @@ def main() -> int:
         else:
             main_win.status_label.setText("Config file not found.")
 
+    def on_source_lang_changed(value: str) -> None:
+        normalized = value.strip().lower()
+        update_section("TRANSLATIONCONFIG", {"source_lang": normalized})
+        reload_runtime_config()
+        main_win.status_label.setText(f"Source language set to {normalized}.")
+
+    def on_target_lang_changed(value: str) -> None:
+        normalized = value.strip().lower()
+        update_section("TRANSLATIONCONFIG", {"target_lang": normalized})
+        reload_runtime_config()
+        main_win.status_label.setText(f"Target language set to {normalized}.")
+
     main_win.btn_toggle_log.clicked.connect(toggle_log_window)
     main_win.btn_toggle_preview.clicked.connect(toggle_preview_window)
     main_win.btn_toggle_game_overlay.clicked.connect(toggle_game_overlay)
     main_win.btn_game_overlay_editor.clicked.connect(toggle_game_overlay_editor)
     main_win.btn_open_config.clicked.connect(open_config_file)
     main_win.btn_reload_config.clicked.connect(reload_runtime_config)
+    main_win.source_lang_combo.currentTextChanged.connect(on_source_lang_changed)
+    main_win.target_lang_combo.currentTextChanged.connect(on_target_lang_changed)
     preview_win.filter_panel.btn_reset.clicked.connect(refresh_preview_capture)
 
     try:

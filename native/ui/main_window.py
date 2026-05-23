@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel, QFrame
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 from PySide6.QtCore import Qt
 
 from native.config.service import read_value, update_section
@@ -9,6 +20,24 @@ from native.ui.preview_window import PreviewWindow
 
 
 class MainWindow(QMainWindow):
+    LANGUAGE_OPTIONS = [
+        "en",
+        "vi",
+        "ja",
+        "zh",
+        "ko",
+        "fr",
+        "de",
+        "es",
+        "it",
+        "pt",
+        "ru",
+        "th",
+        "id",
+        "ar",
+        "tr",
+    ]
+
     def __init__(self, log_window: LogWindow, preview_window: PreviewWindow, overlay_window: QWidget | None = None) -> None:
         super().__init__()
         self.setWindowTitle("Game2Text Control")
@@ -26,12 +55,10 @@ class MainWindow(QMainWindow):
 
         # Status Block
         self.status_label = QLabel("Sẵn sàng")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(72)
-        self.status_label.setMaximumHeight(72)
-        self.status_label.setStyleSheet("padding: 8px 4px;")
-        self.layout.addWidget(self.status_label)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.status_label.setStyleSheet("padding: 8px 10px;")
+        self.layout.addWidget(self._create_status_block())
         self.layout.addSpacing(8)
         self.layout.addWidget(self._create_separator())
         self.layout.addSpacing(12)
@@ -79,6 +106,47 @@ class MainWindow(QMainWindow):
         h = int(read_value("NATIVEAPP", "main_window_height", "360"))
         self.setGeometry(x, y, w, h)
 
+    def _create_status_block(self) -> QWidget:
+        block = QWidget()
+        block.setMinimumHeight(96)
+        block.setMaximumHeight(96)
+
+        block_layout = QHBoxLayout(block)
+        block_layout.setContentsMargins(0, 0, 0, 0)
+        block_layout.setSpacing(0)
+
+        left_panel = QWidget()
+        left_layout = QGridLayout(left_panel)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setHorizontalSpacing(12)
+        left_layout.setVerticalSpacing(10)
+
+        source_label = QLabel("Source lang")
+        target_label = QLabel("Target lang")
+        self.source_lang_combo = QComboBox()
+        self.target_lang_combo = QComboBox()
+        for combo in (self.source_lang_combo, self.target_lang_combo):
+            combo.addItems(self.LANGUAGE_OPTIONS)
+            combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        left_layout.addWidget(source_label, 0, 0)
+        left_layout.addWidget(self.source_lang_combo, 0, 1)
+        left_layout.addWidget(target_label, 1, 0)
+        left_layout.addWidget(self.target_lang_combo, 1, 1)
+
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 8, 10, 8)
+        right_layout.addWidget(self.status_label)
+
+        block_layout.addWidget(left_panel, 1)
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setStyleSheet("color: #3a3a3a;")
+        block_layout.addWidget(divider)
+        block_layout.addWidget(right_panel, 1)
+        return block
+
     def _create_separator(self) -> QFrame:
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -93,6 +161,23 @@ class MainWindow(QMainWindow):
         for button in buttons:
             block_layout.addWidget(button)
         return block
+
+    def sync_translation_language_selectors(self, source_lang: str, target_lang: str) -> None:
+        self._set_combo_value(self.source_lang_combo, source_lang)
+        self._set_combo_value(self.target_lang_combo, target_lang)
+
+    @staticmethod
+    def _set_combo_value(combo: QComboBox, value: str) -> None:
+        normalized = value.strip().lower()
+        if not normalized:
+            return
+        index = combo.findText(normalized, Qt.MatchFlag.MatchFixedString)
+        if index < 0:
+            combo.addItem(normalized)
+            index = combo.findText(normalized, Qt.MatchFlag.MatchFixedString)
+        combo.blockSignals(True)
+        combo.setCurrentIndex(index)
+        combo.blockSignals(False)
 
     def update_hotkey_labels(
         self,
