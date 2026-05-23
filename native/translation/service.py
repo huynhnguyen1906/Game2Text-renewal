@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+from urllib import error as urllib_error
+from urllib import parse as urllib_parse
+from urllib import request as urllib_request
 from typing import Any
-
-import requests
 
 from native.config.service import read_value
 
@@ -38,7 +40,7 @@ def translate_text(text: str) -> str:
         if normalized_provider == "gemini":
             return _translate_with_gemini(api_key, model, text, system_prompt)
         raise RuntimeError(f"Translation provider '{provider}' is not implemented.")
-    except requests.RequestException as exc:
+    except urllib_error.URLError as exc:
         raise RuntimeError(f"Translation request failed: {exc}") from exc
     except Exception as exc:
         if isinstance(exc, (ValueError, RuntimeError)):
@@ -64,29 +66,13 @@ def _build_system_prompt(source_lang: str, target_lang: str) -> str:
 
 
 def _translate_with_openai(api_key: str, model: str, text: str, system_prompt: str) -> str:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text},
-        ],
-        temperature=0.3,
-    )
-    content = response.choices[0].message.content
-    return (content or "").strip()
-
-
-def _translate_with_deepseek(api_key: str, model: str, text: str, system_prompt: str) -> str:
-    response = requests.post(
-        "https://api.deepseek.com/chat/completions",
-        headers={
+    payload = _post_json(
+        "https://api.openai.com/v1/chat/completions",
+        {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
-        json={
+        {
             "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -94,22 +80,38 @@ def _translate_with_deepseek(api_key: str, model: str, text: str, system_prompt:
             ],
             "temperature": 0.3,
         },
-        timeout=REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
-    payload = response.json()
+    return _extract_openai_style_text(payload)
+
+
+def _translate_with_deepseek(api_key: str, model: str, text: str, system_prompt: str) -> str:
+    payload = _post_json(
+        "https://api.deepseek.com/chat/completions",
+        {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": text},
+            ],
+            "temperature": 0.3,
+        },
+    )
     return _extract_openai_style_text(payload)
 
 
 def _translate_with_claude(api_key: str, model: str, text: str, system_prompt: str) -> str:
-    response = requests.post(
+    payload = _post_json(
         "https://api.anthropic.com/v1/messages",
-        headers={
+        {
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
-        json={
+        {
             "model": model,
             "max_tokens": 1024,
             "system": system_prompt,
@@ -117,23 +119,23 @@ def _translate_with_claude(api_key: str, model: str, text: str, system_prompt: s
                 {"role": "user", "content": text},
             ],
         },
-        timeout=REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
-    payload = response.json()
     return _extract_claude_text(payload)
 
 
 def _translate_with_gemini(api_key: str, model: str, text: str, system_prompt: str) -> str:
     normalized_model = model.removeprefix("models/")
-    response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{normalized_model}:generateContent",
-        params={"key": api_key},
-        headers={
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{normalized_model}:generateContent"
+        f"?{urllib_parse.urlencode({'key': api_key})}"
+    )
+    payload = _post_json(
+        url,
+        {
             "Content-Type": "application/json",
         },
-        json={
-            "system_instruction": {
+        {
+            "systemInstruction": {
                 "parts": [
                     {"text": system_prompt},
                 ]
@@ -149,11 +151,28 @@ def _translate_with_gemini(api_key: str, model: str, text: str, system_prompt: s
                 "temperature": 0.3,
             },
         },
-        timeout=REQUEST_TIMEOUT_SECONDS,
     )
-    response.raise_for_status()
-    payload = response.json()
     return _extract_gemini_text(payload)
+
+
+def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib_request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib_request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            raw_body = response.read().decode("utf-8")
+    except urllib_error.HTTPError as exc:
+        response_text = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Provider HTTP {exc.code}: {response_text}") from exc
+
+    try:
+        parsed = json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Provider returned invalid JSON: {raw_body}") from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError("Provider returned an unexpected JSON payload.")
+    return parsed
 
 
 def _extract_openai_style_text(payload: dict[str, Any]) -> str:
