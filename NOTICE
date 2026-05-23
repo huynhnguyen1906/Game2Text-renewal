@@ -1,0 +1,11 @@
+This project is derived from the Game2Text project:
+https://github.com/mathewthe2/Game2Text
+
+Original upstream work copyright belongs to its respective authors.
+
+This repository contains substantial modifications and additional code,
+including a standalone native Windows runtime, packaging changes, and UI/UX
+changes that are not part of the official upstream project.
+
+This repository is not an official upstream release.
+
