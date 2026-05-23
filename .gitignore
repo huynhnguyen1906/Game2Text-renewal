@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime data
+config.ini
+config.ini.bak*
+logs/
+runtime/
+
+# Build artifacts kept internal to this standalone source tree
+build/
+dist/
+
+# PyInstaller
+*.manifest
+*.toc
+*.pkg
+
+# Test and cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.*

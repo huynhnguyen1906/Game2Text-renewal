@@ -1,0 +1,4 @@
+invertColor: false
+dilate: true
+blurImageRadius: 0
+binarizeThreshold: 83
