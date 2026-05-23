@@ -16,17 +16,24 @@ Download the latest release [here](https://github.com/huynhnguyen1906/Game2Text-
 
 ## Translation
 
-The translation flow currently uses an **OpenAI API key**.
+The translation flow currently supports basic API-key-based AI platforms such as:
 
-I may add more translation services later if I have time.
+- OpenAI
+- DeepSeek
+- Claude
+- Gemini
+
+If I have time later, I may add more providers and improve the translation service further.
 
 To use the app:
 
 1. Open `config.ini`
-2. Paste your key into:
+2. Set your provider, model, and API key in `TRANSLATIONCONFIG`
 
 ```ini
-openai_api_key =
+translation_service = openai
+model = gpt-4.1-nano
+api_key =
 ```
 
 ## Development Environment

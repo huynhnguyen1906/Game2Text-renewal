@@ -29,7 +29,7 @@ class GameOverlayEditorWindow(QWidget):
         root_layout.setContentsMargins(12, 12, 12, 12)
         root_layout.setSpacing(12)
 
-        info_label = QLabel("Mo editor de keo va resize cua so overlay truc tiep tren man hinh.")
+        info_label = QLabel("Use the editor to drag and resize the overlay directly on screen.")
         info_label.setWordWrap(True)
         root_layout.addWidget(info_label)
 

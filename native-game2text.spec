@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
 ROOT = Path(SPECPATH)
@@ -36,8 +36,14 @@ datas += collect_dir_files(PROFILES_DIR, "profiles")
 datas += collect_dir_files(PUBLIC_DIR, "public")
 if PACKAGED_CONFIG.exists():
     datas.append((str(PACKAGED_CONFIG), "."))
+datas += collect_data_files("certifi")
 
 hiddenimports = collect_submodules("openai")
+hiddenimports += collect_submodules("requests")
+hiddenimports += collect_submodules("charset_normalizer")
+hiddenimports += collect_submodules("urllib3")
+hiddenimports += collect_submodules("idna")
+hiddenimports += collect_submodules("certifi")
 hiddenimports += [
     "cv2",
     "keyboard",
