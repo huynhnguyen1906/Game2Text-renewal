@@ -33,10 +33,11 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
         ),
     },
     "TRANSLATIONCONFIG": {
+        "translation_service": "openai",
         "source_lang": "en",
         "target_lang": "vi",
-        "openai_model": "gpt-4.1-nano",
-        "openai_api_key": "",
+        "model": "gpt-4.1-nano",
+        "api_key": "",
     },
     "LOGCONFIG": {
         "launchlogwindow": "false",
@@ -59,7 +60,9 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
 
 EXISTING_SECTION_DEFAULTS: dict[str, dict[str, str]] = {
     "TRANSLATIONCONFIG": {
-        "openai_model": "gpt-4.1-nano",
+        "translation_service": "openai",
+        "model": "gpt-4.1-nano",
+        "api_key": "",
     },
 }
 
@@ -384,10 +387,39 @@ def _apply_region_compat(parser: ConfigParser) -> bool:
 def _cleanup_legacy_translation_config(parser: ConfigParser) -> bool:
     if not parser.has_section("TRANSLATIONCONFIG"):
         return False
+    changed = False
+
+    if parser.has_option("TRANSLATIONCONFIG", "openai_model") and not parser.has_option(
+        "TRANSLATIONCONFIG", "model"
+    ):
+        parser.set("TRANSLATIONCONFIG", "model", parser.get("TRANSLATIONCONFIG", "openai_model"))
+        changed = True
+
+    if parser.has_option("TRANSLATIONCONFIG", "openai_api_key") and not parser.has_option(
+        "TRANSLATIONCONFIG", "api_key"
+    ):
+        parser.set("TRANSLATIONCONFIG", "api_key", parser.get("TRANSLATIONCONFIG", "openai_api_key"))
+        changed = True
+
+    if parser.has_option("TRANSLATIONCONFIG", "translation_service"):
+        legacy_service = parser.get("TRANSLATIONCONFIG", "translation_service").strip()
+        if legacy_service.lower() == "google translate":
+            parser.set("TRANSLATIONCONFIG", "translation_service", "openai")
+            changed = True
+
     if not parser.has_option("TRANSLATIONCONFIG", "translation_service"):
-        return False
-    parser.remove_option("TRANSLATIONCONFIG", "translation_service")
-    return True
+        parser.set("TRANSLATIONCONFIG", "translation_service", "openai")
+        changed = True
+
+    if parser.has_option("TRANSLATIONCONFIG", "openai_model"):
+        parser.remove_option("TRANSLATIONCONFIG", "openai_model")
+        changed = True
+
+    if parser.has_option("TRANSLATIONCONFIG", "openai_api_key"):
+        parser.remove_option("TRANSLATIONCONFIG", "openai_api_key")
+        changed = True
+
+    return changed
 
 
 def _find_source_config(target_path: Path) -> Path | None:

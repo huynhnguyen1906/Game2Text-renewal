@@ -5,8 +5,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QLineEdit,
     QLabel,
     QMainWindow,
+    QInputDialog,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -20,6 +22,13 @@ from native.ui.preview_window import PreviewWindow
 
 
 class MainWindow(QMainWindow):
+    PROVIDER_OPTIONS = [
+        "openai",
+        "gemini",
+        "claude",
+        "deepseek",
+    ]
+
     LANGUAGE_OPTIONS = [
         "en",
         "vi",
@@ -108,8 +117,8 @@ class MainWindow(QMainWindow):
 
     def _create_status_block(self) -> QWidget:
         block = QWidget()
-        block.setMinimumHeight(96)
-        block.setMaximumHeight(96)
+        block.setMinimumHeight(156)
+        block.setMaximumHeight(156)
 
         block_layout = QHBoxLayout(block)
         block_layout.setContentsMargins(0, 0, 0, 0)
@@ -123,16 +132,29 @@ class MainWindow(QMainWindow):
 
         source_label = QLabel("Source lang")
         target_label = QLabel("Target lang")
+        provider_label = QLabel("Provider")
+        model_label = QLabel("Model")
         self.source_lang_combo = QComboBox()
         self.target_lang_combo = QComboBox()
         for combo in (self.source_lang_combo, self.target_lang_combo):
             combo.addItems(self.LANGUAGE_OPTIONS)
             combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.provider_combo = QComboBox()
+        self.provider_combo.addItems(self.PROVIDER_OPTIONS)
+        self.provider_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.model_input = QLineEdit()
+        self.model_input.setPlaceholderText("Model")
+        self.btn_set_api_key = QPushButton("Set API Key")
 
         left_layout.addWidget(source_label, 0, 0)
         left_layout.addWidget(self.source_lang_combo, 0, 1)
         left_layout.addWidget(target_label, 1, 0)
         left_layout.addWidget(self.target_lang_combo, 1, 1)
+        left_layout.addWidget(provider_label, 2, 0)
+        left_layout.addWidget(self.provider_combo, 2, 1)
+        left_layout.addWidget(model_label, 3, 0)
+        left_layout.addWidget(self.model_input, 3, 1)
+        left_layout.addWidget(self.btn_set_api_key, 4, 0, 1, 2)
 
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
@@ -162,9 +184,20 @@ class MainWindow(QMainWindow):
             block_layout.addWidget(button)
         return block
 
-    def sync_translation_language_selectors(self, source_lang: str, target_lang: str) -> None:
+    def sync_translation_settings(
+        self,
+        *,
+        source_lang: str,
+        target_lang: str,
+        provider: str,
+        model: str,
+    ) -> None:
         self._set_combo_value(self.source_lang_combo, source_lang)
         self._set_combo_value(self.target_lang_combo, target_lang)
+        self._set_combo_value(self.provider_combo, provider)
+        self.model_input.blockSignals(True)
+        self.model_input.setText(model)
+        self.model_input.blockSignals(False)
 
     @staticmethod
     def _set_combo_value(combo: QComboBox, value: str) -> None:
@@ -178,6 +211,19 @@ class MainWindow(QMainWindow):
         combo.blockSignals(True)
         combo.setCurrentIndex(index)
         combo.blockSignals(False)
+
+    def prompt_for_api_key(self) -> str | None:
+        current_value = read_value("TRANSLATIONCONFIG", "api_key", "")
+        value, accepted = QInputDialog.getText(
+            self,
+            "Set API Key",
+            "API key:",
+            QLineEdit.EchoMode.Password,
+            current_value,
+        )
+        if not accepted:
+            return None
+        return value.strip()
 
     def update_hotkey_labels(
         self,

@@ -101,13 +101,20 @@ def main() -> int:
         toggle_game_overlay_hotkey = read_value("GAMEOVERLAY", "toggle_hotkey", "ctrl+shift+2")
         source_lang = read_value("TRANSLATIONCONFIG", "source_lang", "en")
         target_lang = read_value("TRANSLATIONCONFIG", "target_lang", "vi")
+        provider = read_value("TRANSLATIONCONFIG", "translation_service", "openai")
+        model = read_value("TRANSLATIONCONFIG", "model", "gpt-4.1-nano")
         main_win.update_hotkey_labels(
             capture_hotkey=region_for_hotkeys.capture_hotkey,
             select_hotkey=region_for_hotkeys.select_hotkey,
             toggle_borders_hotkey=show_borders_hotkey,
             toggle_game_overlay_hotkey=toggle_game_overlay_hotkey,
         )
-        main_win.sync_translation_language_selectors(source_lang, target_lang)
+        main_win.sync_translation_settings(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            provider=provider,
+            model=model,
+        )
         setup_hotkeys(
             region_for_hotkeys.capture_hotkey,
             region_for_hotkeys.select_hotkey,
@@ -263,6 +270,27 @@ def main() -> int:
         reload_runtime_config()
         main_win.status_label.setText(f"Target language set to {normalized}.")
 
+    def on_provider_changed(value: str) -> None:
+        normalized = value.strip().lower()
+        update_section("TRANSLATIONCONFIG", {"translation_service": normalized})
+        reload_runtime_config()
+        main_win.status_label.setText(f"Translation provider set to {normalized}.")
+
+    def on_model_changed() -> None:
+        model_value = main_win.model_input.text().strip()
+        update_section("TRANSLATIONCONFIG", {"model": model_value})
+        reload_runtime_config()
+        main_win.status_label.setText(f"Translation model set to {model_value or '(empty)'}.")
+
+    def on_set_api_key() -> None:
+        api_key = main_win.prompt_for_api_key()
+        if api_key is None:
+            return
+        update_section("TRANSLATIONCONFIG", {"api_key": api_key})
+        reload_runtime_config()
+        masked = "*" * min(len(api_key), 8) if api_key else "(empty)"
+        main_win.status_label.setText(f"API key updated: {masked}")
+
     main_win.btn_toggle_log.clicked.connect(toggle_log_window)
     main_win.btn_toggle_preview.clicked.connect(toggle_preview_window)
     main_win.btn_toggle_game_overlay.clicked.connect(toggle_game_overlay)
@@ -271,6 +299,9 @@ def main() -> int:
     main_win.btn_reload_config.clicked.connect(reload_runtime_config)
     main_win.source_lang_combo.currentTextChanged.connect(on_source_lang_changed)
     main_win.target_lang_combo.currentTextChanged.connect(on_target_lang_changed)
+    main_win.provider_combo.currentTextChanged.connect(on_provider_changed)
+    main_win.model_input.editingFinished.connect(on_model_changed)
+    main_win.btn_set_api_key.clicked.connect(on_set_api_key)
     preview_win.filter_panel.btn_reset.clicked.connect(refresh_preview_capture)
 
     try:
