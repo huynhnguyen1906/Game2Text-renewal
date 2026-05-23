@@ -26,7 +26,7 @@ class LogRowWidget(QWidget):
         self.divider.setStyleSheet("background-color: #555;")
         
         # Translation/Status Text
-        self.status_label = QLabel("Đang dịch...")
+        self.status_label = QLabel("Translating...")
         self.status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet("color: #aaa;")
@@ -68,7 +68,7 @@ class LogRowWidget(QWidget):
             self.status_label.setText(translated_text)
         elif status == "error":
             self._status_mode = "error"
-            error_msg = str(patch.get("translation_error", "Lỗi dịch thuật"))
+            error_msg = str(patch.get("translation_error", "Translation error"))
             self.status_label.setText(error_msg)
         elif status == "queue_full":
             self._status_mode = "queue_full"
@@ -78,5 +78,5 @@ class LogRowWidget(QWidget):
             self._status_mode = "ocr_error"
         elif status == "pending":
             self._status_mode = "pending"
-            self.status_label.setText("Đang dịch...")
+            self.status_label.setText("Translating...")
         self.apply_styles()

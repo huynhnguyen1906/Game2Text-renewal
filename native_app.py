@@ -41,7 +41,7 @@ def _apply_runtime_icon(app: QApplication, *windows) -> None:
 
 
 def main() -> int:
-    # Bật tính năng nhận diện Ctrl+C trong terminal cho PySide6
+    # Keep Ctrl+C working in the terminal while the Qt event loop is running.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     set_windows_app_user_model_id()

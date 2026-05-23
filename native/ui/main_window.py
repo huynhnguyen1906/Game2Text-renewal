@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         # Status Block
-        self.status_label = QLabel("Sẵn sàng")
+        self.status_label = QLabel("Ready")
         self.status_label.setWordWrap(True)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.status_label.setStyleSheet("padding: 8px 10px;")

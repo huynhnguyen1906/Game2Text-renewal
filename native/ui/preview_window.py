@@ -25,7 +25,7 @@ class PreviewWindow(QMainWindow):
         self.layout = QHBoxLayout(central_widget)
         
         # Preview Setup
-        self.preview_label = QLabel("Chưa có ảnh preview")
+        self.preview_label = QLabel("No preview image")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("background-color: black; color: white;")
         self.preview_label.setMinimumSize(0, 0)
@@ -74,7 +74,7 @@ class PreviewWindow(QMainWindow):
 
     def render_preview(self) -> None:
         if self._source_preview_image is None:
-            self.preview_label.setText("Chưa có ảnh preview")
+            self.preview_label.setText("No preview image")
             self.preview_label.setPixmap(QPixmap())
             return
         filtered_image = apply_filters(self._source_preview_image.copy(), load_filter_config())

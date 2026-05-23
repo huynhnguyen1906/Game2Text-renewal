@@ -2,6 +2,8 @@
 
 This is a small app I made while playing **Wuthering Waves** to make the game easier to play. The game does not support Vietnamese, which is my native language, so this project exists mainly to bridge that gap.
 
+Download the latest release [here](https://github.com/huynhnguyen1906/Game2Text-renewal/releases/latest).
+
 ![Game2Text Preview](public/preview.png)
 
 ## Features
