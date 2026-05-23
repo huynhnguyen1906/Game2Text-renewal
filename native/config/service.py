@@ -33,7 +33,6 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
         ),
     },
     "TRANSLATIONCONFIG": {
-        "translation_service": "Google Translate",
         "source_lang": "en",
         "target_lang": "vi",
         "openai_model": "gpt-4.1-nano",
@@ -318,6 +317,10 @@ def ensure_native_config(config_path: Path | None = None) -> bool:
     changed = created
     needs_backup = False
 
+    if _cleanup_legacy_translation_config(parser):
+        changed = True
+        needs_backup = True
+
     if _apply_region_compat(parser):
         changed = True
         needs_backup = True
@@ -376,6 +379,15 @@ def _apply_region_compat(parser: ConfigParser) -> bool:
             parser.set(REGION_SECTION, new_key, parser.get(REGION_COMPAT_SECTION, old_key))
             changed = True
     return changed
+
+
+def _cleanup_legacy_translation_config(parser: ConfigParser) -> bool:
+    if not parser.has_section("TRANSLATIONCONFIG"):
+        return False
+    if not parser.has_option("TRANSLATIONCONFIG", "translation_service"):
+        return False
+    parser.remove_option("TRANSLATIONCONFIG", "translation_service")
+    return True
 
 
 def _find_source_config(target_path: Path) -> Path | None:

@@ -344,7 +344,6 @@ Current behavior:
 - reads model from config:
   - `TRANSLATIONCONFIG.openai_model`
 - currently uses OpenAI chat completions
-- the config still says `translation_service = Google Translate`, but this is intentionally mapped to the OpenAI path for compatibility with the old modified source behavior
 
 ## Current Config Notes
 
