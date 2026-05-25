@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRect
 
 from native.config.service import read_value, update_section
 from native.ui.log_window import LogWindow
@@ -114,6 +114,7 @@ class MainWindow(QMainWindow):
         w = int(read_value("NATIVEAPP", "main_window_width", "420"))
         h = int(read_value("NATIVEAPP", "main_window_height", "360"))
         self.setGeometry(x, y, w, h)
+        self._persisted_geometry = QRect(self.geometry())
 
     def _create_status_block(self) -> QWidget:
         block = QWidget()
@@ -248,7 +249,25 @@ class MainWindow(QMainWindow):
         pretty_hotkey = "+".join(part.capitalize() for part in normalized.split("+"))
         return f"{label} ({pretty_hotkey})"
 
+    def _capture_persistable_geometry(self) -> None:
+        rect = self.normalGeometry() if self.isMaximized() else self.geometry()
+        if rect.width() > 0 and rect.height() > 0:
+            self._persisted_geometry = QRect(rect)
+
+    def showEvent(self, event) -> None:
+        self._capture_persistable_geometry()
+        super().showEvent(event)
+
+    def moveEvent(self, event) -> None:
+        self._capture_persistable_geometry()
+        super().moveEvent(event)
+
+    def resizeEvent(self, event) -> None:
+        self._capture_persistable_geometry()
+        super().resizeEvent(event)
+
     def closeEvent(self, event) -> None:
+        self._capture_persistable_geometry()
         log_open = not self.log_win.isHidden()
         preview_open = not self.preview_win.isHidden()
         overlay_open = bool(
@@ -261,10 +280,10 @@ class MainWindow(QMainWindow):
             self.overlay_win.prepare_for_app_shutdown(overlay_open)
         update_section("NATIVEAPP", {
             "main_window_open": "true",
-            "main_window_width": str(self.width()),
-            "main_window_height": str(self.height()),
-            "main_window_x": str(self.x()),
-            "main_window_y": str(self.y()),
+            "main_window_width": str(self._persisted_geometry.width()),
+            "main_window_height": str(self._persisted_geometry.height()),
+            "main_window_x": str(self._persisted_geometry.x()),
+            "main_window_y": str(self._persisted_geometry.y()),
             "log_window_open": str(log_open).lower(),
             "preview_window_open": str(preview_open).lower(),
         })

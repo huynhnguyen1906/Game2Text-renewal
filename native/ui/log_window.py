@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QScrollArea, QHBoxLayout, QPushButton, QLabel
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QRect
 
 from native.config.service import read_value, update_section
 from native.ui.log_row_widget import LogRowWidget
@@ -88,6 +88,7 @@ class LogWindow(QMainWindow):
         w = int(read_value("NATIVEAPP", "log_window_width", "400"))
         h = int(read_value("NATIVEAPP", "log_window_height", "600"))
         self.setGeometry(x, y, w, h)
+        self._persisted_geometry = QRect(self.geometry())
 
     def _load_initial_font_size(self) -> int:
         raw_value = read_value("NATIVEAPP", "log_font_size", read_value("APPEARANCE", "fontsize", "23"))
@@ -101,15 +102,21 @@ class LogWindow(QMainWindow):
         self._shutdown_in_progress = True
         self._shutdown_restore_open = restore_open
 
+    def _capture_persistable_geometry(self) -> None:
+        rect = self.normalGeometry() if self.isMaximized() else self.geometry()
+        if rect.width() > 0 and rect.height() > 0:
+            self._persisted_geometry = QRect(rect)
+
     def persist_state(self, open_state: bool | None = None) -> None:
         if open_state is None:
             open_state = self.isVisible()
+        self._capture_persistable_geometry()
         update_section("NATIVEAPP", {
             "log_window_open": str(open_state).lower(),
-            "log_window_width": str(self.width()),
-            "log_window_height": str(self.height()),
-            "log_window_x": str(self.x()),
-            "log_window_y": str(self.y()),
+            "log_window_width": str(self._persisted_geometry.width()),
+            "log_window_height": str(self._persisted_geometry.height()),
+            "log_window_x": str(self._persisted_geometry.x()),
+            "log_window_y": str(self._persisted_geometry.y()),
             "log_font_size": str(self.log_font_size),
         })
 
@@ -159,8 +166,17 @@ class LogWindow(QMainWindow):
             self.scroll_to_bottom()
 
     def showEvent(self, event) -> None:
+        self._capture_persistable_geometry()
         self.persist_state(True)
         super().showEvent(event)
+
+    def moveEvent(self, event) -> None:
+        self._capture_persistable_geometry()
+        super().moveEvent(event)
+
+    def resizeEvent(self, event) -> None:
+        self._capture_persistable_geometry()
+        super().resizeEvent(event)
 
     def hideEvent(self, event) -> None:
         if not self._shutdown_in_progress:
@@ -168,6 +184,7 @@ class LogWindow(QMainWindow):
         super().hideEvent(event)
 
     def closeEvent(self, event) -> None:
+        self._capture_persistable_geometry()
         open_state = self._shutdown_restore_open if self._shutdown_in_progress else False
         self.persist_state(open_state)
         super().closeEvent(event)
