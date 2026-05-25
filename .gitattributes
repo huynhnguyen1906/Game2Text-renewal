@@ -1,0 +1,3 @@
+resources/bin/win/tesseract/** linguist-vendored
+build/** linguist-vendored
+dist/** linguist-vendored
