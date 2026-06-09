@@ -1,0 +1,13 @@
+PySide6
+mss
+keyboard>=0.13.5
+pytesseract==0.3.10
+Pillow==10.0.1
+opencv-python==4.8.0.76
+numpy==1.26.0
+PyYAML==6.0.1
+pyinstaller==5.13.2
+pyinstaller-hooks-contrib==2023.8
+paddleocr
+paddlex
+paddlepaddle-gpu==3.3.0

@@ -9,6 +9,8 @@ from native.config.service import ensure_native_config
 
 def ensure_runtime_directories() -> None:
     for directory in (
+        paths.runtime_dir(),
+        paths.paddle_cache_dir(),
         paths.text_logs_dir(),
         paths.image_logs_dir(),
         paths.profiles_dir(),

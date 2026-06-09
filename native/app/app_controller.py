@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import sys
+import traceback
 from datetime import datetime
+from pathlib import Path
 
 from native.app.event_bus import global_bus
 from native.app.workers import global_workers
 from native.config.service import load_filter_config
+from native.core import paths
 from native.filters.service import apply_filters
 from native.ocr.service import image_to_text
 from native.logs.service import default_log_service
@@ -88,10 +92,29 @@ class AppController:
                 self.process_ocr_result(text)
                 self.bus.status_changed.emit("Ready")
             except Exception as e:
+                self._write_ocr_error_log(e)
+                if not getattr(sys, "frozen", False):
+                    print("[OCR ERROR]", repr(e), file=sys.stderr)
+                    traceback.print_exc()
                 self.bus.capture_failed.emit(str(e))
                 self.bus.status_changed.emit("OCR failed")
 
         self.workers.capture_executor.submit(_ocr_task)
+
+    def _write_ocr_error_log(self, error: Exception) -> None:
+        try:
+            logs_dir = paths.text_logs_dir()
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / "ocr_errors.log"
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{timestamp}] {repr(error)}\n")
+                handle.write(traceback.format_exc())
+                if not traceback.format_exc().endswith("\n"):
+                    handle.write("\n")
+                handle.write("\n")
+        except Exception:
+            pass
 
 
 global_controller = AppController()

@@ -27,6 +27,10 @@ def config_path() -> Path:
     return app_root() / "config.ini"
 
 
+def runtime_dir() -> Path:
+    return app_root() / "runtime"
+
+
 def logs_dir() -> Path:
     return app_root() / "logs"
 
@@ -41,6 +45,10 @@ def image_logs_dir() -> Path:
 
 def profiles_dir() -> Path:
     return app_root() / "profiles"
+
+
+def paddle_cache_dir() -> Path:
+    return runtime_dir() / "paddle"
 
 
 def resources_dir() -> Path:

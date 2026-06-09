@@ -25,6 +25,21 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
     "OCRCONFIG": {
         "engine": "Tesseract LSTM",
         "tesseract_language": "eng",
+        "paddle_language": "en",
+        "paddle_runtime_engine": "paddle_dynamic",
+        "paddle_cache_dir": "",
+        "paddle_disable_model_source_check": "true",
+        "paddle_use_gpu": "false",
+        "paddle_gpu_device": "gpu:0",
+        "paddle_enable_hpi": "false",
+        "paddle_use_tensorrt": "false",
+        "paddle_precision": "fp32",
+        "paddle_log_timing": "true",
+        "paddle_use_doc_orientation_classify": "false",
+        "paddle_use_doc_unwarping": "false",
+        "paddle_use_textline_orientation": "false",
+        "paddle_text_detection_model_name": "PP-OCRv5_mobile_det",
+        "paddle_text_recognition_model_name": "",
         "ocr_space_language": "eng",
         "oem": "1",
         "extra_options": (
@@ -59,6 +74,23 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
 
 
 EXISTING_SECTION_DEFAULTS: dict[str, dict[str, str]] = {
+    "OCRCONFIG": {
+        "paddle_language": "en",
+        "paddle_runtime_engine": "paddle_dynamic",
+        "paddle_cache_dir": "",
+        "paddle_disable_model_source_check": "true",
+        "paddle_use_gpu": "false",
+        "paddle_gpu_device": "gpu:0",
+        "paddle_enable_hpi": "false",
+        "paddle_use_tensorrt": "false",
+        "paddle_precision": "fp32",
+        "paddle_log_timing": "true",
+        "paddle_use_doc_orientation_classify": "false",
+        "paddle_use_doc_unwarping": "false",
+        "paddle_use_textline_orientation": "false",
+        "paddle_text_detection_model_name": "PP-OCRv5_mobile_det",
+        "paddle_text_recognition_model_name": "",
+    },
     "TRANSLATIONCONFIG": {
         "translation_service": "openai",
         "model": "gpt-4.1-nano",
