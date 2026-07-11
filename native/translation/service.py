@@ -20,7 +20,7 @@ _history_lock = threading.Lock()
 _history_context_key: tuple[str, str, str, str] | None = None
 
 
-def translate_text(text: str) -> str:
+def translate_text(text: str, context_labels: tuple[str, ...] = ()) -> str:
     """Translate OCR text using the configured provider."""
     if not text or not text.strip():
         return ""
@@ -38,7 +38,7 @@ def translate_text(text: str) -> str:
     history_key = (normalized_provider, model, source_lang, target_lang)
     history = _get_history_snapshot(history_key)
     system_prompt = _build_system_prompt(source_lang, target_lang)
-    user_prompt = _build_user_prompt(text, history)
+    user_prompt = _build_user_prompt(text, history, context_labels=context_labels)
 
     try:
         if normalized_provider == "openai":
@@ -74,6 +74,7 @@ def _build_system_prompt(source_lang: str, target_lang: str) -> str:
         "The user may provide up to five previous source/translation pairs as context. "
         "Use them only to preserve terminology, proper names, pronouns, tone, and consistent translation choices. "
         "Preserve proper names and established terms unless the context clearly provides a translated form. "
+        "An optional OCR context label may identify a speaker or provide a name reading; use it only as context and do not output it. "
         "Translate only the current source and never output or retranslate the previous context. "
         "If previous context conflicts with the current source, prioritize the current source. "
         "Ignore meaningless OCR noise and make the best reasonable guess for unclear fragments. "
@@ -81,7 +82,11 @@ def _build_system_prompt(source_lang: str, target_lang: str) -> str:
     )
 
 
-def _build_user_prompt(text: str, history: list[tuple[str, str]]) -> str:
+def _build_user_prompt(
+    text: str,
+    history: list[tuple[str, str]],
+    context_labels: tuple[str, ...] = (),
+) -> str:
     sections: list[str] = []
     if history:
         context_lines = ["<previous_context>"]
@@ -96,6 +101,13 @@ def _build_user_prompt(text: str, history: list[tuple[str, str]]) -> str:
             )
         context_lines.append("</previous_context>")
         sections.append("\n".join(context_lines))
+    cleaned_labels = [label.strip() for label in context_labels if label and label.strip()]
+    if cleaned_labels:
+        sections.append(
+            "<ocr_context_labels>\n"
+            + "\n".join(cleaned_labels)
+            + "\n</ocr_context_labels>"
+        )
     sections.append(f"<current_source>\n{text.strip()}\n</current_source>")
     return "\n\n".join(sections)
 

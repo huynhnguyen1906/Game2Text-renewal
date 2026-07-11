@@ -5,6 +5,8 @@ import gc
 import sys
 import threading
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ from PIL import Image
 
 from native.core import paths
 from native.config.service import read_bool, read_value
+from native.ocr.models import OcrResult
 
 
 _OCR_INSTANCES: dict[tuple[str, bool], Any] = {}
@@ -43,8 +46,8 @@ LANGUAGE_ALIASES = {
 }
 
 
-def image_to_text(image: Image.Image, text_orientation: str = "horizontal") -> str:
-    """Run PaddleOCR on a PIL image and return flattened text output."""
+def image_to_text(image: Image.Image, text_orientation: str = "horizontal") -> OcrResult:
+    """Run PaddleOCR and return dialogue text with optional OCR context."""
     language = _resolve_paddle_language()
     use_angle_cls = text_orientation != "vertical"
     ocr = _get_ocr_instance(language, use_angle_cls)
@@ -65,8 +68,7 @@ def image_to_text(image: Image.Image, text_orientation: str = "horizontal") -> s
         total_seconds = time.perf_counter() - started_at
         _log_cuda_memory("after_ocr")
         _print_timing_if_enabled(ocr, total_seconds, image.size, convert_seconds)
-        texts = _extract_texts(result)
-        return " ".join(part for part in texts if part).strip()
+        return _extract_ocr_result(result, language)
     except Exception:
         _log_cuda_memory("ocr_exception_before_cleanup")
         raise
@@ -437,6 +439,164 @@ def _format_bytes(value: int) -> str:
     if gib >= 1:
         return f"{gib:.3f}GiB/{mib:.1f}MiB"
     return f"{mib:.1f}MiB"
+
+
+@dataclass(frozen=True)
+class _RecognizedBox:
+    index: int
+    text: str
+    score: float | None
+    left: float
+    top: float
+    right: float
+    bottom: float
+
+    @property
+    def width(self) -> float:
+        return max(0.0, self.right - self.left)
+
+    @property
+    def height(self) -> float:
+        return max(0.0, self.bottom - self.top)
+
+    @property
+    def center_x(self) -> float:
+        return (self.left + self.right) / 2.0
+
+    @property
+    def center_y(self) -> float:
+        return (self.top + self.bottom) / 2.0
+
+
+def _extract_ocr_result(result: Any, language: str) -> OcrResult:
+    if language != "japan":
+        texts = _extract_texts(result)
+        return OcrResult(text=" ".join(part for part in texts if part).strip())
+
+    boxes = _extract_recognized_boxes(result)
+    if not boxes:
+        texts = _extract_texts(result)
+        return OcrResult(text=" ".join(part for part in texts if part).strip())
+
+    context_boxes = _find_japanese_context_labels(boxes)
+    context_indices = {box.index for box in context_boxes}
+    _log_japanese_box_classification(boxes, context_indices)
+    dialogue = [box.text for box in boxes if box.index not in context_indices]
+    return OcrResult(
+        text=" ".join(part for part in dialogue if part).strip(),
+        context_labels=tuple(box.text for box in context_boxes),
+    )
+
+
+def _extract_recognized_boxes(result: Any) -> list[_RecognizedBox]:
+    payload = _find_recognition_payload(result)
+    if payload is None:
+        return []
+
+    raw_texts = payload.get("rec_texts")
+    raw_boxes = payload.get("rec_boxes")
+    raw_scores = payload.get("rec_scores")
+    if not isinstance(raw_texts, (list, tuple)) or raw_boxes is None:
+        return []
+
+    try:
+        boxes = list(raw_boxes)
+    except TypeError:
+        return []
+    scores = list(raw_scores) if isinstance(raw_scores, (list, tuple, np.ndarray)) else []
+    recognized: list[_RecognizedBox] = []
+    for index, (raw_text, raw_box) in enumerate(zip(raw_texts, boxes)):
+        text = str(raw_text).strip()
+        coordinates = _coerce_box_coordinates(raw_box)
+        if not text or coordinates is None:
+            continue
+        score = None
+        if index < len(scores):
+            try:
+                score = float(scores[index])
+            except (TypeError, ValueError):
+                score = None
+        recognized.append(_RecognizedBox(index, text, score, *coordinates))
+    return recognized
+
+
+def _find_recognition_payload(node: Any) -> Mapping[str, Any] | None:
+    if isinstance(node, Mapping):
+        if "rec_texts" in node and "rec_boxes" in node:
+            return node
+        for value in node.values():
+            payload = _find_recognition_payload(value)
+            if payload is not None:
+                return payload
+        return None
+    if isinstance(node, (list, tuple)):
+        for item in node:
+            payload = _find_recognition_payload(item)
+            if payload is not None:
+                return payload
+    return None
+
+
+def _coerce_box_coordinates(raw_box: Any) -> tuple[float, float, float, float] | None:
+    try:
+        values = np.asarray(raw_box, dtype=float)
+    except (TypeError, ValueError):
+        return None
+    if values.size == 4:
+        left, top, right, bottom = values.reshape(-1).tolist()
+        return float(left), float(top), float(right), float(bottom)
+    if values.ndim == 2 and values.shape[1] >= 2:
+        xs = values[:, 0]
+        ys = values[:, 1]
+        return float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())
+    return None
+
+
+def _find_japanese_context_labels(boxes: list[_RecognizedBox]) -> list[_RecognizedBox]:
+    if len(boxes) < 2:
+        return []
+
+    candidates: list[_RecognizedBox] = []
+    for candidate in boxes:
+        if len(candidate.text) > 20 or candidate.text.endswith(("。", "！", "？", "!", "?", "、", "…")):
+            continue
+        wider_boxes = [
+            box
+            for box in boxes
+            if box.index != candidate.index
+            and box.width >= candidate.width * 2.5
+            and box.height > candidate.height
+            and box.center_y > candidate.center_y
+            and candidate.center_x >= box.left
+            and candidate.center_x <= box.right
+            and candidate.bottom <= box.top + box.height * 0.35
+        ]
+        if not wider_boxes:
+            continue
+        main_box = max(wider_boxes, key=lambda box: box.width)
+        if main_box.height <= 0 or candidate.height > main_box.height * 0.85:
+            continue
+        candidates.append(candidate)
+
+    return sorted(candidates, key=lambda box: (box.top, box.left, box.index))
+
+
+def _log_japanese_box_classification(
+    boxes: list[_RecognizedBox],
+    context_indices: set[int],
+) -> None:
+    if not read_bool("OCRCONFIG", "paddle_log_timing", True):
+        return
+    details = []
+    for box in boxes:
+        role = "context" if box.index in context_indices else "dialogue"
+        score = f"{box.score:.3f}" if box.score is not None else "n/a"
+        details.append(
+            f"[{box.index}] role={role} text={box.text!r} "
+            f"box=({box.left:.0f},{box.top:.0f},{box.right:.0f},{box.bottom:.0f}) "
+            f"size={box.width:.0f}x{box.height:.0f} score={score}"
+        )
+    _write_paddle_perf_log("[PADDLE JP BOXES] " + " | ".join(details))
 
 
 def _extract_texts(result: Any) -> list[str]:

@@ -11,6 +11,7 @@ from native.config.service import load_filter_config
 from native.core import paths
 from native.filters.service import apply_filters
 from native.ocr.service import image_to_text
+from native.ocr.models import OcrResult
 from native.logs.service import default_log_service
 from native.translation.service import translate_text
 from native.core.models import LogEntry
@@ -21,7 +22,12 @@ class AppController:
         self.bus = global_bus
         self.workers = global_workers
 
-    def queue_translation(self, log_id: str, source_text: str) -> None:
+    def queue_translation(
+        self,
+        log_id: str,
+        source_text: str,
+        context_labels: tuple[str, ...] = (),
+    ) -> None:
         # Avoid unlimited API backlog:
         acquired = self.workers.translation_slots.acquire(blocking=False)
         if not acquired:
@@ -41,7 +47,7 @@ class AppController:
 
         def _translate_task() -> None:
             try:
-                translated = translate_text(source_text)
+                translated = translate_text(source_text, context_labels=context_labels)
                 default_log_service.update_translation(log_id, translated)
                 self.bus.overlay_text_updated.emit(translated)
                 self.bus.log_entry_updated.emit(log_id, {
@@ -61,7 +67,8 @@ class AppController:
 
         self.workers.translation_executor.submit(_translate_task)
 
-    def process_ocr_result(self, text: str) -> None:
+    def process_ocr_result(self, result: OcrResult) -> None:
+        text = result.text
         if not text or not text.strip():
             # Generate fake log_id and fire row update without queue translation
             fake_id = default_log_service.generate_log_id()
@@ -80,7 +87,7 @@ class AppController:
         # Normal valid OCR
         entry = default_log_service.append_source_text(text)
         self.bus.log_entry_created.emit(entry)
-        self.queue_translation(entry.id, entry.source_text)
+        self.queue_translation(entry.id, entry.source_text, context_labels=result.context_labels)
 
     def process_captured_image(self, image, region_id: str = "1") -> None:
         def _ocr_task() -> None:
@@ -91,13 +98,13 @@ class AppController:
                 filtered_image = apply_filters(image.copy(), filter_config)
                 filter_seconds = time.perf_counter() - filter_started_at
                 ocr_started_at = time.perf_counter()
-                text = image_to_text(filtered_image)
+                result = image_to_text(filtered_image)
                 ocr_seconds = time.perf_counter() - ocr_started_at
                 self._write_ocr_perf_log(
                     f"region_id={region_id} image={image.width}x{image.height} "
                     f"filter={filter_seconds:.3f}s ocr={ocr_seconds:.3f}s"
                 )
-                self.process_ocr_result(text)
+                self.process_ocr_result(result)
                 self.bus.status_changed.emit("Ready")
             except Exception as e:
                 self._write_ocr_error_log(e)
