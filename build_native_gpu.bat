@@ -1,6 +1,15 @@
 @echo off
 setlocal EnableExtensions
 
+for /f "delims=" %%I in ('powershell -NoProfile -Command "[DateTime]::UtcNow.Ticks"') do set "BUILD_STARTED_TICKS=%%I"
+
+call :build
+set "BUILD_EXIT=%ERRORLEVEL%"
+
+powershell -NoProfile -Command "$elapsed = [TimeSpan]::FromTicks([DateTime]::UtcNow.Ticks - [long]$env:BUILD_STARTED_TICKS); Write-Host ('GPU build elapsed: {0:hh\:mm\:ss}' -f $elapsed)"
+exit /b %BUILD_EXIT%
+
+:build
 set "ROOT=%~dp0"
 set "VENV_PYTHON=%ROOT%venv\Scripts\python.exe"
 set "ALT_VENV_PYTHON=%ROOT%.venv\Scripts\python.exe"

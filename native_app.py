@@ -102,7 +102,7 @@ def main() -> int:
         source_lang = read_value("TRANSLATIONCONFIG", "source_lang", "en")
         target_lang = read_value("TRANSLATIONCONFIG", "target_lang", "vi")
         provider = read_value("TRANSLATIONCONFIG", "translation_service", "openai")
-        model = read_value("TRANSLATIONCONFIG", "model", "gpt-4.1-nano")
+        model = read_value("TRANSLATIONCONFIG", "model", "gpt-5.4-nano")
         main_win.update_hotkey_labels(
             capture_hotkey=region_for_hotkeys.capture_hotkey,
             select_hotkey=region_for_hotkeys.select_hotkey,

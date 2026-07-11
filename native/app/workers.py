@@ -16,7 +16,8 @@ class WorkerPool:
         except ValueError:
             queue_limit = 5
             
-        self.translation_executor = ThreadPoolExecutor(max_workers=queue_limit, thread_name_prefix="TranslationWorker")
+        # Preserve dialogue order so each translation can use the completed result immediately before it.
+        self.translation_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="TranslationWorker")
         self.translation_slots = threading.BoundedSemaphore(queue_limit)
 
     def shutdown(self) -> None:

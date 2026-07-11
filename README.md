@@ -32,7 +32,7 @@ To use the app:
 
 ```ini
 translation_service = openai
-model = gpt-4.1-nano
+model = gpt-5.4-nano
 api_key =
 ```
 

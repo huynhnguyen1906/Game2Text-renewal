@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import sys
+import time
 import traceback
 from datetime import datetime
-from pathlib import Path
 
 from native.app.event_bus import global_bus
 from native.app.workers import global_workers
@@ -86,9 +86,17 @@ class AppController:
         def _ocr_task() -> None:
             try:
                 self.bus.status_changed.emit("Running OCR...")
+                filter_started_at = time.perf_counter()
                 filter_config = load_filter_config()
                 filtered_image = apply_filters(image.copy(), filter_config)
+                filter_seconds = time.perf_counter() - filter_started_at
+                ocr_started_at = time.perf_counter()
                 text = image_to_text(filtered_image)
+                ocr_seconds = time.perf_counter() - ocr_started_at
+                self._write_ocr_perf_log(
+                    f"region_id={region_id} image={image.width}x{image.height} "
+                    f"filter={filter_seconds:.3f}s ocr={ocr_seconds:.3f}s"
+                )
                 self.process_ocr_result(text)
                 self.bus.status_changed.emit("Ready")
             except Exception as e:
@@ -105,7 +113,7 @@ class AppController:
         try:
             logs_dir = paths.text_logs_dir()
             logs_dir.mkdir(parents=True, exist_ok=True)
-            log_path = logs_dir / "ocr_errors.log"
+            log_path = logs_dir / "ocr_errors.txt"
             timestamp = datetime.now().isoformat(timespec="seconds")
             with log_path.open("a", encoding="utf-8") as handle:
                 handle.write(f"[{timestamp}] {repr(error)}\n")
@@ -113,6 +121,19 @@ class AppController:
                 if not traceback.format_exc().endswith("\n"):
                     handle.write("\n")
                 handle.write("\n")
+        except Exception:
+            pass
+
+    def _write_ocr_perf_log(self, message: str) -> None:
+        try:
+            logs_dir = paths.text_logs_dir()
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / "ocr_perf.txt"
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{timestamp}] {message}\n")
+            if not getattr(sys, "frozen", False):
+                print(f"[OCR PERF] {message}")
         except Exception:
             pass
 

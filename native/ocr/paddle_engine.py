@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import gc
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,14 +49,34 @@ def image_to_text(image: Image.Image, text_orientation: str = "horizontal") -> s
     use_angle_cls = text_orientation != "vertical"
     ocr = _get_ocr_instance(language, use_angle_cls)
 
+    _log_cuda_memory("before_pre_ocr_empty_cache")
+    _empty_cuda_cache()
+    _log_cuda_memory("after_pre_ocr_empty_cache")
+    _log_cuda_memory("before_convert")
+    convert_started_at = time.perf_counter()
     image_array = np.array(image.convert("RGB"))
+    convert_seconds = time.perf_counter() - convert_started_at
     _reset_timing_state(ocr)
+    _log_cuda_memory("before_ocr")
     started_at = time.perf_counter()
-    result = ocr.ocr(image_array)
-    total_seconds = time.perf_counter() - started_at
-    _print_timing_if_enabled(ocr, total_seconds)
-    texts = _extract_texts(result)
-    return " ".join(part for part in texts if part).strip()
+    result: Any = None
+    try:
+        result = ocr.ocr(image_array)
+        total_seconds = time.perf_counter() - started_at
+        _log_cuda_memory("after_ocr")
+        _print_timing_if_enabled(ocr, total_seconds, image.size, convert_seconds)
+        texts = _extract_texts(result)
+        return " ".join(part for part in texts if part).strip()
+    except Exception:
+        _log_cuda_memory("ocr_exception_before_cleanup")
+        raise
+    finally:
+        result = None
+        image_array = None
+        gc.collect()
+        _log_cuda_memory("after_gc_before_empty_cache")
+        _empty_cuda_cache()
+        _log_cuda_memory("after_empty_cache")
 
 
 def _resolve_paddle_language() -> str:
@@ -142,6 +164,7 @@ def _get_ocr_instance(language: str, use_angle_cls: bool) -> Any:
             use_textline_orientation=use_textline_orientation,
             text_detection_model_name=text_detection_model_name,
             text_recognition_model_name=text_recognition_model_name,
+            text_recognition_batch_size=2,
         )
         _attach_timing_hooks(instance)
         _OCR_INSTANCES[key] = instance
@@ -160,6 +183,12 @@ def _configure_paddle_environment(cache_dir: str, disable_source_check: bool) ->
     cache_path.mkdir(parents=True, exist_ok=True)
     os.environ["PADDLE_PDX_CACHE_HOME"] = str(cache_path)
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True" if disable_source_check else "False"
+    # Best-effort 3.5GB cap for inference. Paddle's GPU memory limit flags are not perfectly strict
+    # in every inference path, but this gives OCR enough headroom for heavy recognition spikes.
+    os.environ["FLAGS_allocator_strategy"] = "auto_growth"
+    os.environ["FLAGS_gpu_memory_limit_mb"] = "3584"
+    os.environ["FLAGS_initial_gpu_memory_in_mb"] = "3584"
+    os.environ.pop("FLAGS_reallocate_gpu_memory_in_mb", None)
     if read_bool("OCRCONFIG", "paddle_use_gpu", False):
         _configure_windows_gpu_dll_paths()
 
@@ -263,6 +292,7 @@ def _attach_timing_hooks(ocr: Any) -> None:
         original_rec_process = pipe.text_rec_model.process
 
         def timed_rec_process(*args: Any, **kwargs: Any) -> Any:
+            _log_recognizer_inputs(ocr, args, kwargs)
             started_at = time.perf_counter()
             try:
                 return original_rec_process(*args, **kwargs)
@@ -278,6 +308,36 @@ def _attach_timing_hooks(ocr: Any) -> None:
     ocr._codex_timing_hooks_installed = True
 
 
+def _log_recognizer_inputs(ocr: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+    if not read_bool("OCRCONFIG", "paddle_log_timing", True):
+        return
+    try:
+        batch_data = args[0] if args else kwargs.get("batch_data")
+        raw_instances = getattr(batch_data, "instances", None)
+        instances = list(raw_instances) if raw_instances is not None else []
+        state = getattr(ocr, "_codex_timing_state", None)
+        call_index = int(state.get("recognizer_calls", 0)) + 1 if isinstance(state, dict) else 1
+        crop_details: list[str] = []
+        for index, crop in enumerate(instances):
+            shape = getattr(crop, "shape", ())
+            if len(shape) < 2:
+                crop_details.append(f"crop[{index}]=shape:{shape!r}")
+                continue
+            height = int(shape[0])
+            width = int(shape[1])
+            ratio = width / float(height) if height > 0 else float("inf")
+            projected_width = min(3200, int(48 * max(320 / 48, ratio))) if height > 0 else 3200
+            crop_details.append(
+                f"crop[{index}]={width}x{height} ratio={ratio:.3f} projected_rec_width={projected_width}"
+            )
+        details = " ".join(crop_details) if crop_details else "no_crops"
+        _write_paddle_perf_log(
+            f"[PADDLE REC INPUT] call={call_index} crops={len(instances)} {details}"
+        )
+    except Exception as exc:
+        _write_paddle_perf_log(f"[PADDLE REC INPUT] logging_failed={exc!r}")
+
+
 def _reset_timing_state(ocr: Any) -> None:
     state = getattr(ocr, "_codex_timing_state", None)
     if isinstance(state, dict):
@@ -287,23 +347,96 @@ def _reset_timing_state(ocr: Any) -> None:
         state["recognizer_calls"] = 0
 
 
-def _print_timing_if_enabled(ocr: Any, total_seconds: float) -> None:
+def _print_timing_if_enabled(
+    ocr: Any,
+    total_seconds: float,
+    image_size: tuple[int, int],
+    convert_seconds: float,
+) -> None:
     if not read_bool("OCRCONFIG", "paddle_log_timing", True):
         return
     state = getattr(ocr, "_codex_timing_state", None)
+    width, height = image_size
     if not isinstance(state, dict):
-        print(f"[PADDLE OCR TIMING] total={total_seconds:.3f}s")
+        message = (
+            "[PADDLE OCR TIMING] "
+            f"size={width}x{height} "
+            f"convert={convert_seconds:.3f}s "
+            f"total={total_seconds:.3f}s"
+        )
+        print(message)
+        _write_paddle_perf_log(message)
         return
     detector_seconds = float(state.get("detector_seconds", 0.0))
     recognizer_seconds = float(state.get("recognizer_seconds", 0.0))
     detector_calls = int(state.get("detector_calls", 0))
     recognizer_calls = int(state.get("recognizer_calls", 0))
-    print(
+    message = (
         "[PADDLE OCR TIMING] "
+        f"size={width}x{height} "
+        f"convert={convert_seconds:.3f}s "
         f"total={total_seconds:.3f}s "
         f"detector={detector_seconds:.3f}s(calls={detector_calls}) "
         f"recognizer={recognizer_seconds:.3f}s(calls={recognizer_calls})"
     )
+    print(message)
+    _write_paddle_perf_log(message)
+
+
+def _write_paddle_perf_log(message: str) -> None:
+    try:
+        logs_dir = paths.text_logs_dir()
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_path = logs_dir / "ocr_perf.txt"
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{timestamp}] {message}\n")
+    except Exception:
+        pass
+
+
+def _log_cuda_memory(stage: str) -> None:
+    if not read_bool("OCRCONFIG", "paddle_log_timing", True):
+        return
+    try:
+        import paddle
+
+        cuda = paddle.device.cuda
+        allocated = int(cuda.memory_allocated("gpu:0"))
+        reserved = int(cuda.memory_reserved("gpu:0"))
+        max_allocated = int(cuda.max_memory_allocated("gpu:0"))
+        max_reserved = int(cuda.max_memory_reserved("gpu:0"))
+        idle_reserved = max(0, reserved - allocated)
+        message = (
+            "[PADDLE CUDA MEMORY] "
+            f"stage={stage} "
+            f"allocated={_format_bytes(allocated)} "
+            f"reserved={_format_bytes(reserved)} "
+            f"idle_reserved={_format_bytes(idle_reserved)} "
+            f"max_allocated={_format_bytes(max_allocated)} "
+            f"max_reserved={_format_bytes(max_reserved)}"
+        )
+        print(message)
+        _write_paddle_perf_log(message)
+    except Exception as exc:
+        _write_paddle_perf_log(f"[PADDLE CUDA MEMORY] stage={stage} unavailable={exc!r}")
+
+
+def _empty_cuda_cache() -> None:
+    try:
+        import paddle
+
+        paddle.device.cuda.empty_cache()
+    except Exception as exc:
+        _write_paddle_perf_log(f"[PADDLE CUDA MEMORY] empty_cache_failed={exc!r}")
+
+
+def _format_bytes(value: int) -> str:
+    mib = value / (1024 * 1024)
+    gib = value / (1024 * 1024 * 1024)
+    if gib >= 1:
+        return f"{gib:.3f}GiB/{mib:.1f}MiB"
+    return f"{mib:.1f}MiB"
 
 
 def _extract_texts(result: Any) -> list[str]:

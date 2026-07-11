@@ -51,7 +51,7 @@ DEFAULT_CONFIG: dict[str, dict[str, str]] = {
         "translation_service": "openai",
         "source_lang": "en",
         "target_lang": "vi",
-        "model": "gpt-4.1-nano",
+        "model": "gpt-5.4-nano",
         "api_key": "",
     },
     "LOGCONFIG": {
@@ -93,7 +93,7 @@ EXISTING_SECTION_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "TRANSLATIONCONFIG": {
         "translation_service": "openai",
-        "model": "gpt-4.1-nano",
+        "model": "gpt-5.4-nano",
         "api_key": "",
     },
 }
